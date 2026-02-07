@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gym Tracker – {{ month_name }} {{ year }}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 420px;
+      margin: 0 auto;
+      padding: 24px;
+      background: #0f0f12;
+      color: #e4e4e7;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav a {
+      color: #a1a1aa;
+      text-decoration: none;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: #18181b;
+      font-size: 0.9rem;
+    }
+    .nav a:hover {
+      background: #27272a;
+      color: #e4e4e7;
+    }
+    .month-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fafafa;
+    }
+    .stats {
+      font-size: 0.875rem;
+      color: #71717a;
+      margin-bottom: 16px;
+    }
+    .stats strong { color: #a78bfa; }
+    .calendar {
+      width: 100%;
+      border-collapse: collapse;
+      background: #18181b;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .calendar th {
+      padding: 10px 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .calendar td {
+      padding: 0;
+      text-align: center;
+      vertical-align: middle;
+    }
+    .day-cell {
+      display: block;
+      padding: 12px 4px;
+      margin: 2px;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      user-select: none;
+    }
+    .day-cell:hover {
+      background: #27272a;
+    }
+    .day-cell:active {
+      transform: scale(0.96);
+    }
+    .day-cell.visited {
+      background: #5b21b6;
+      color: #fafafa;
+    }
+    .day-cell.visited:hover {
+      background: #6d28d9;
+    }
+    .cal-empty {
+      background: transparent;
+    }
+    .cal-empty .day-cell {
+      cursor: default;
+      color: #3f3f46;
+      pointer-events: none;
+    }
+    .logout {
+      margin-top: 24px;
+    }
+    .logout a {
+      color: #71717a;
+      font-size: 0.875rem;
+      text-decoration: none;
+    }
+    .logout a:hover { color: #a1a1aa; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Gym Tracker</h1>
+      <p class="month-title">{{ month_name }} {{ year }}</p>
+    </div>
+    <nav class="nav">
+      <a href="?year={{ prev_year }}&month={{ prev_month }}">← Prev</a>
+      <a href="?year={{ next_year }}&month={{ next_month }}">Next →</a>
+    </nav>
+  </div>
+
+  <p class="stats">You went to the gym <strong>{{ total_visits }}</strong> time{{ total_visits|pluralize }} this month.</p>
+
+  <table class="calendar" aria-label="Calendar for {{ month_name }} {{ year }}">
+    <thead>
+      <tr>
+        <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in calendar_days %}
+      <tr>
+        {% for day_num, date_str in week %}
+          {% if date_str %}
+            <td>
+              <span class="day-cell {% if date_str in visited_dates %}visited{% endif %}"
+                    data-date="{{ date_str }}"
+                    role="button"
+                    tabindex="0"
+                    aria-label="{% if date_str in visited_dates %}Went to gym on {{ date_str }}. Click to unmark.{% else %}Did not go to gym on {{ date_str }}. Click to mark.{% endif %}">
+                {{ day_num }}
+              </span>
+            </td>
+          {% else %}
+            <td class="cal-empty"><span class="day-cell">&nbsp;</span></td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="logout"><a href="{% url 'logout' %}">Log out</a></p>
+
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}" id="csrf-token">
+
+  <script>
+    (function() {
+      var toggleUrl = '{% url "toggle_visit" %}';
+      var csrfToken = document.getElementById('csrf-token').value;
+
+      document.querySelectorAll('.day-cell[data-date]').forEach(function(cell) {
+        function toggle() {
+          var date = cell.getAttribute('data-date');
+          var formData = new FormData();
+          formData.append('csrfmiddlewaretoken', csrfToken);
+          formData.append('date', date);
+
+          fetch(toggleUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-CSRFToken': csrfToken,
+              'Accept': 'application/json'
+            }
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.status === 'added') {
+              cell.classList.add('visited');
+              cell.setAttribute('aria-label', 'Went to gym on ' + date + '. Click to unmark.');
+            } else if (data.status === 'removed') {
+              cell.classList.remove('visited');
+              cell.setAttribute('aria-label', 'Did not go to gym on ' + date + '. Click to mark.');
+            }
+          })
+          .catch(function() {
+            alert('Something went wrong. Please try again.');
+          });
+        }
+
+        cell.addEventListener('click', toggle);
+        cell.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle();
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
